@@ -85,7 +85,6 @@ covid.19.progression <- c(list.files(path = dir.Seurat_objects, pattern = "S-M")
 ```{r}
 main.wd <- getwd()
 #DE.folder.address <- "C:/Users/AlarAab/Mavatar/Forskning - General/Output/Covid19/GSE158055/" #S-M046/DifferentialExpression/
-
 DE.folder.address <- "C:/Users/AlarAab/Mavatar/Utveckling - GSE158055"
 ```
 
