@@ -1,0 +1,123 @@
+---
+output:
+  html_document:
+    self_contained: true
+    highlight: tango
+    df_print: paged
+    toc: yes
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    toc_depth: 3
+    keep_md: no
+    fig_caption: true
+    code_folding: show
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, result='hold', error=FALSE, echo=TRUE, eval=TRUE, cache=FALSE, fig.width = 10)
+```
+
+```{=html, echo=FALSE}
+
+<style type="text/css">
+div.hidecode + pre {display: none}
+
+body{ /* Normal  */
+      font-size: 12px;
+  }
+td {  /* Table  */
+  font-size: 8px;
+}
+h1.title {
+  font-size: 38px;
+  color: DarkRed;
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+```
+
+## Libraries
+***
+
+```{r Libraries}
+suppressMessages(require(dplyr))
+```
+
+##author: "Alar Aab"
+##date: "22 April 2022"
+***
+
+```{r}
+patient.sample.ID <- "S-S089-2"
+```
+
+```{r}
+DE.folder.address <- "C:/Users/AlarAab/Mavatar/Utveckling - GSE158055/"
+lookup.folder <- paste0(DE.folder.address,patient.sample.ID,"/DifferentialExpression/Moderate_vs_severe/")
+```
+
+```{r}
+setwd(lookup.folder) #redirect to the right folder
+
+DE.files <- list.files(pattern = paste0(patient.sample.ID,"_tbl.result.Rda"))
+
+tbl.result.temp <- data.frame()
+
+for (i in DE.files){
+  load(i)
+  tbl.result.temp <- rbind(tbl.result.temp, tbl.result)
+}
+tbl.result <- tbl.result.temp
+rm(tbl.result.temp)
+gc()
+```
+
+```{r}
+tbl.result$up.in.Moderate <- NA
+p.critical <- 0.05
+tbl.result[tbl.result$p_val <= .05,]$up.in.Moderate <- tbl.result %>% .[.$p_val <= p.critical,] %>% .$avg_log2FC < 0
+```
+
+```{r}
+genes.unique <- tbl.result %>%  .$gene %>% sort(.) %>% unique(.)
+```
+
+```{r}
+cell.types.unique <- tbl.result %>%  .$cell.type %>% sort(.) %>% unique(.)
+```
+
+```{r}
+setwd(lookup.folder) #redirect to the right folder
+
+for (i in cell.types.unique){
+  tbl.result.temp <- tbl.result %>% filter(., cell.type == i) %>% .[,c(6,10)]
+  tbl.temp <- table(tbl.result.temp$gene, tbl.result.temp$up.in.Moderate)[,c(2,1)]
+  colnames(tbl.temp) <- c("up.in.Severe","up.in.Moderate")
+  write.table(tbl.temp,paste0("tbl.",patient.sample.ID,".",i,".cells"))
+}
+```
+
+# Session Info
+***
+
+```{r}
+sessionInfo()
+```
