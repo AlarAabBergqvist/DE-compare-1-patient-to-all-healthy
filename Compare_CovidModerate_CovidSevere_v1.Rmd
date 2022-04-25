@@ -1,0 +1,162 @@
+---
+output:
+  html_document:
+    self_contained: true
+    highlight: tango
+    df_print: paged
+    toc: yes
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    toc_depth: 3
+    keep_md: no
+    fig_caption: true
+    code_folding: show
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, result='hold', error=FALSE, echo=TRUE, eval=TRUE, cache=FALSE, fig.width = 10)
+```
+
+```{=html, echo=FALSE}
+
+<style type="text/css">
+div.hidecode + pre {display: none}
+
+body{ /* Normal  */
+      font-size: 12px;
+  }
+td {  /* Table  */
+  font-size: 8px;
+}
+h1.title {
+  font-size: 38px;
+  color: DarkRed;
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+```
+
+```{r Alar Libraries}
+#are all these libraries needed - needs to be checked?
+suppressMessages(require(Seurat))
+suppressMessages(require(dplyr))
+```
+
+##author: "Alar Aab"
+##date: "21 April 2022"
+***
+
+```{r link to folders of Seurat objects}
+#files needs to be downloaded from cloud first - otherwise it is not possible to read them
+dir.Seurat_objects <- "D://SeuratObjects/"
+```
+
+```{r healthy moderate}
+Covid.19.Moderate <- c(list.files(path = dir.Seurat_objects, pattern = "S-M"))
+Covid.19.Moderate
+```
+
+```{r covid19 severe}
+covid.19.severe <- c(list.files(path = dir.Seurat_objects, pattern = "S-S"))
+covid.19.severe
+```
+
+```{r}
+DE.folder.address <- "C:/Users/AlarAab/Mavatar/Utveckling - GSE158055"
+```
+
+```{r}
+for (covid19.obj.name in covid.19.severe[12:13]){
+  
+    #creates directory if missing
+    lookup.folder <- paste0(DE.folder.address,"/",strsplit(covid19.obj.name,split=" ")[[1]][2])
+
+    tbl.result.dir <- paste0(lookup.folder,"/DifferentialExpression/Moderate_vs_severe")
+
+    if (!dir.exists(lookup.folder)) {
+      dir.create(paste0(lookup.folder,"/"))
+    }
+
+    if (!dir.exists(paste0(lookup.folder,"/DifferentialExpression/"))) {
+      dir.create(paste0(lookup.folder,"/DifferentialExpression/"))
+    }
+
+    if (!dir.exists(tbl.result.dir)) {
+      dir.create(tbl.result.dir)
+    }
+
+  covid19.obj <- readRDS(paste0(dir.Seurat_objects,covid19.obj.name))
+  covid19.obj <- covid19.obj$sce #we need only .$sce part
+  gc()
+  
+  covid19.obj_cell.type.present <- unique(covid19.obj@meta.data$majorType)
+  
+  for (Covid.19.Moderate.obj.name in Covid.19.Moderate){
+    
+    Covid.19.Moderate.obj <- readRDS(paste0(dir.Seurat_objects,Covid.19.Moderate.obj.name))
+    Covid.19.Moderate.obj <- Covid.19.Moderate.obj$sce #we need only .$sce part
+    gc()
+    
+    Covid.19.Moderate.obj_cell.type.present <- unique(Covid.19.Moderate.obj@meta.data$majorType)
+    cell.type.present <- intersect(covid19.obj_cell.type.present, Covid.19.Moderate.obj_cell.type.present)
+    
+    #for agg there must be the same gene list from both samples
+    genes.use <- intersect(rownames(Covid.19.Moderate.obj),rownames(covid19.obj))
+    
+    Covid.19.Moderate.obj.seurat <- Covid.19.Moderate.obj[genes.use,]
+    covid19.obj.seurat <- covid19.obj[genes.use,]
+    
+    #We can now use RunCCA to combine the two samples and
+    #also to identify common sources of variation between the two dataset.
+    agg <- RunCCA(Covid.19.Moderate.obj.seurat,covid19.obj.seurat,num.cc=10)
+    
+    sample.name <- unique(agg@meta.data$Sample.name) #two sample names
+    
+    for (cell.type in cell.type.present){
+      
+      #cell number in FindMarkeks can not be less than 3
+      if (sum(agg[,agg@meta.data$majorType == cell.type]$sampleID == sample.name[1])<4){
+        next
+      }
+      if (sum(agg[,agg@meta.data$majorType == cell.type]$sampleID == sample.name[2])<4){
+        next
+      }
+      
+      cell.markers <- FindMarkers(object = agg[,agg@meta.data$majorType == cell.type], ident.1 = sample.name[1], ident.2 = sample.name[2], 
+                         group.by = "Sample.name",test.use="wilcox")
+      
+      tbl.result.temp <- cbind(cell.markers, gene = rownames(cell.markers), healthy = sample.name[1], covid.19 = sample.name[2], cell.type = cell.type)
+      if (exists("tbl.result")){
+        tbl.result <- rbind(tbl.result,tbl.result.temp)
+        }else{
+          tbl.result <- tbl.result.temp
+          }
+    }
+    setwd(tbl.result.dir)
+
+    save(tbl.result, file = paste0(sample.name[1],"_",sample.name[2],"_","tbl.result.Rda"))
+    rm(list = c("tbl.result", "Covid.19.Moderate.obj", "agg", "Covid.19.Moderate.obj.seurat", "covid19.obj.seurat"))
+    gc()
+  }
+  rm(covid19.obj)
+  gc()
+}
+```
